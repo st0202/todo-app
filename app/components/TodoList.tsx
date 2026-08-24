@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import type { Todo } from "../types/todo";
+import { TodoForm } from "./TodoForm";
 
 // 最初に表示するダミーデータ。
 // 本来はサーバーやAPIから取得するものだが、まずは
@@ -20,13 +21,44 @@ export function TodoList() {
   // 「stateとして持っている配列そのものが、別の新しい配列に置き換わった」
   // という捉え方をする。中身がオブジェクトでも配列でも、
   // useStateの扱い方は数値や文字列のときと同じ。
-  // まだこの段階では追加・削除を実装していないので setTodos は使わないが、
-  // 次のステップ（フォームでの追加、ボタンでの削除）で
-  // 「新しい配列を作ってsetTodosに渡す」形で更新していく。
-  const [todos] = useState<Todo[]>(initialTodos);
+  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+
+  // [なぜ todos.push(newTodo) と書いてはいけないのか]
+  // push は元の配列そのものを書き換える（破壊的変更）。
+  // 仮にpushした後にsetTodos(todos)を呼んでも、
+  // Reactは「setTodosに渡された配列」と「今のstateの配列」が
+  // 同じ参照（同じオブジェクト）かどうかで「変わったかどうか」を判定するため、
+  // 中身を書き換えただけの同じ配列を渡しても「変化なし」とみなされ、
+  // 再描画がスキップされてしまうことがある。
+  // そのため、スプレッド構文 [...todos, newTodo] で
+  // 「既存の要素はそのままに、末尾に1件加えた“別の新しい配列”」を作り、
+  // それをsetTodosに渡している。これがReactでいう
+  // 「stateはイミュータブル（不変）に扱う」という原則の具体例。
+  function addTodo(text: string) {
+    const newTodo: Todo = {
+      // Date.now()は「今の時刻をミリ秒で返す」簡易的な一意ID生成。
+      // 本来はサーバー/DBがIDを採番するのが望ましいが、
+      // ここではAPIと繋ぐ前の学習用の割り切りとして採用している。
+      id: Date.now(),
+      text,
+      done: false,
+    };
+    setTodos([...todos, newTodo]);
+  }
 
   return (
-    <ul>
+    <>
+      {/*
+        [ここがpropsの実例]
+        onAdd={addTodo} という形で、TodoList自身が持つ関数を
+        子コンポーネントであるTodoFormにpropsとして渡している。
+        TodoForm側は「渡された関数を呼ぶ」だけで、
+        配列がどう更新されるかの詳細（スプレッド構文など）を一切知らない。
+        こうして「入力欄の見た目・操作」と「データの持ち方・更新ロジック」の
+        責務を分離できるのが、コンポーネントを分割する意義の一つ。
+      */}
+      <TodoForm onAdd={addTodo} />
+      <ul>
       {/*
         [map: 配列データをJSX要素の配列に変換する]
         Reactは「JSX要素の配列」をそのまま描画できる。
@@ -60,6 +92,7 @@ export function TodoList() {
           {todo.text}
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }
