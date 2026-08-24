@@ -2,18 +2,10 @@
 // Clockと同じ理由で "use client" が必要。
 // useStateを使う時点で「ブラウザ上で状態を持つ」コンポーネントになるため。
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Todo } from "../types/todo";
 import { TodoForm } from "./TodoForm";
 import { TodoItem } from "./TodoItem";
-
-// 最初に表示するダミーデータ。
-// 本来はサーバーやAPIから取得するものだが、まずは
-// 「配列を表示する」という部分だけに集中するため、決め打ちの値から始める。
-const initialTodos: Todo[] = [
-  { id: 1, text: "Reactの基礎を復習する", done: false },
-  { id: 2, text: "Next.jsのApp Routerを触ってみる", done: true },
-];
 
 export function TodoList() {
   // [配列のstateという考え方]
@@ -22,7 +14,38 @@ export function TodoList() {
   // 「stateとして持っている配列そのものが、別の新しい配列に置き換わった」
   // という捉え方をする。中身がオブジェクトでも配列でも、
   // useStateの扱い方は数値や文字列のときと同じ。
-  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  //
+  // 最初は空配列で始め、下のuseEffectでAPIから取得したデータに置き換える。
+  const [todos, setTodos] = useState<Todo[]>([]);
+
+  // [なぜここでAPIから取得するのか / useEffectの役割の再確認]
+  // 「画面が表示されたタイミングで、外部（ここでは自前のAPI）からデータを
+  //  取ってくる」というのは、Reactのレンダリングそのもの（JSXの計算）ではなく
+  // 副作用（side effect）にあたるため、Clockのタイマーと同じくuseEffectの中で行う。
+  // 依存配列を[]にしているのもClockと同じ理由で、
+  // 「このコンポーネントが最初に表示された時に1回だけ取得する」という意味になる。
+  //
+  // [なぜuseEffectの引数を直接asyncにできないのか]
+  // useEffectの第1引数（副作用の関数）は「戻り値なし」または
+  // 「クリーンアップ用の関数」を返すことが期待されている。
+  // しかしasync関数は常にPromiseを返してしまうため、
+  // useEffectの引数にそのままasync関数を渡すとReactの想定と食い違い、
+  // 警告やクリーンアップの誤動作の原因になる。
+  // そのため、useEffectの中で別途async関数を定義し、それを内側で呼び出す
+  // （即座に実行する）という形をとる、これが定番のパターン。
+  useEffect(() => {
+    async function loadTodos() {
+      // fetch: ブラウザ標準のAPIで、指定したURLにHTTPリクエストを送る。
+      // ここでの "/api/todos" は、まさに今作ったRoute Handler
+      // （app/api/todos/route.ts）に対応するURL。
+      const res = await fetch("/api/todos");
+      // レスポンスのボディをJSONとしてパースする処理も非同期なのでawaitが必要。
+      const data: Todo[] = await res.json();
+      setTodos(data);
+    }
+
+    loadTodos();
+  }, []);
 
   // [なぜ todos.push(newTodo) と書いてはいけないのか]
   // push は元の配列そのものを書き換える（破壊的変更）。
